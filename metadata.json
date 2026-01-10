@@ -1,0 +1,6 @@
+
+{
+  "name": "Roxo Sabor - Açaí Premium",
+  "description": "Premium açaí delivery with a built-in owner dashboard for real-time visual and status customization.",
+  "requestFramePermissions": ["geolocation"]
+}
