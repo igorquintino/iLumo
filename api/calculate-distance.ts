@@ -1,5 +1,6 @@
+// app/api/calculate-distance/route.ts
+import { NextResponse } from "next/server";
 
-// COORDENADAS FIXAS DA ROXO SABOR
 const ORIGEM_LAT = -20.665541149082127;
 const ORIGEM_LON = -43.804545918264765;
 
@@ -23,66 +24,70 @@ function distanciaEmKm(lat1: number, lon1: number, lat2: number, lon2: number) {
 
 // TABELA DE PREÇO
 function calcularPreco(distanciaKm: number) {
-  if (distanciaKm <= 1) return 4.99;      // 0.5–1 km
-  if (distanciaKm <= 2) return 6.99;      // 1.5–2 km
-  if (distanciaKm <= 3) return 7.99;      // 2.5–3 km
-  if (distanciaKm <= 4) return 8.99;      // 3.5–4 km
-  if (distanciaKm <= 5) return 10.99;     // 4.5–5 km
-  if (distanciaKm <= 5.5) return 11.99;   // 5.5 km
-  return 12.99;                           // 6 km ou mais
+  if (distanciaKm <= 1) return 4.99;
+  if (distanciaKm <= 2) return 6.99;
+  if (distanciaKm <= 3) return 7.99;
+  if (distanciaKm <= 4) return 8.99;
+  if (distanciaKm <= 5) return 10.99;
+  if (distanciaKm <= 5.5) return 11.99;
+  return 12.99;
 }
 
-export default async function handler(req: any, res: any) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
-  }
-
+export async function POST(request: Request) {
   try {
-    const { address } = req.body;
+    const body = await request.json().catch(() => null);
+    const address = body?.address;
+
     if (!address) {
-      return res.status(400).json({ error: "Endereço é obrigatório" });
+      return NextResponse.json({ error: "Endereço é obrigatório" }, { status: 400 });
     }
 
-    // Chamada GRATUITA ao Nominatim (OpenStreetMap)
+    // Nominatim (OpenStreetMap)
     const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(
       address
     )}`;
 
     const resp = await fetch(url, {
       headers: {
-        // recomendado pelo Nominatim (identificação do app)
         "User-Agent": "Roxo-Sabor-App/1.0 (contato@roxosabor.com.br)",
+        "Accept": "application/json",
       },
+      cache: "no-store",
     });
 
     if (!resp.ok) {
-      throw new Error("Erro na comunicação com o serviço de mapas");
+      return NextResponse.json(
+        { error: "Erro na comunicação com o serviço de mapas" },
+        { status: 502 }
+      );
     }
 
-    const data = await resp.json();
+    const data = (await resp.json()) as any[];
 
-    if (!data || !data.length) {
-      return res.status(404).json({ error: "Endereço não encontrado. Verifique se digitou corretamente o Bairro e Rua." });
+    if (!data?.length) {
+      return NextResponse.json(
+        { error: "Endereço não encontrado. Verifique Bairro e Rua." },
+        { status: 404 }
+      );
     }
 
     const destinoLat = parseFloat(data[0].lat);
     const destinoLon = parseFloat(data[0].lon);
 
-    const distanciaKm = distanciaEmKm(
-      ORIGEM_LAT,
-      ORIGEM_LON,
-      destinoLat,
-      destinoLon
-    );
-
+    const distanciaKm = distanciaEmKm(ORIGEM_LAT, ORIGEM_LON, destinoLat, destinoLon);
     const price = calcularPreco(distanciaKm);
 
-    return res.status(200).json({
+    return NextResponse.json({
       distanciaKm: Number(distanciaKm.toFixed(2)),
       price,
     });
   } catch (err: any) {
-    console.error(err);
-    return res.status(500).json({ error: "Erro ao calcular distância: " + err.message });
+    return NextResponse.json(
+      { error: "Erro ao calcular distância: " + (err?.message ?? "desconhecido") },
+      { status: 500 }
+    );
   }
 }
+
+// Se você estiver usando runtime edge e der problema com fetch/headers, descomenta:
+// export const runtime = "nodejs";
