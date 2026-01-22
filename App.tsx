@@ -163,11 +163,12 @@ export default function Page() {
     try {
       const fullAddress = `${customer.street}, ${customer.number}, ${customer.neighborhood}, ${customer.city}`;
 
-      const res = await fetch("/api/calculate-distance", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ address: fullAddress }),
-      });
+      const res = await fetch("/app/api/calculate-distance/route.ts", { 
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ address: fullAddress }),
+});
+
 
       const data = await res.json().catch(() => ({}));
 
