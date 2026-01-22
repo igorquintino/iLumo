@@ -1,12 +1,19 @@
 // app/api/calculate-distance/route.ts
 import { NextResponse } from "next/server";
 
+export const runtime = "nodejs"; // recomendado p/ evitar treta de headers/fetch em edge
+
 const ORIGEM_LAT = -20.665541149082127;
 const ORIGEM_LON = -43.804545918264765;
 
+type NominatimResult = {
+  lat: string;
+  lon: string;
+};
+
 // Haversine: distância em km entre dois pontos (lat, lon)
 function distanciaEmKm(lat1: number, lon1: number, lat2: number, lon2: number) {
-  const R = 6371; // raio da Terra em km
+  const R = 6371;
   const toRad = (v: number) => (v * Math.PI) / 180;
 
   const dLat = toRad(lat2 - lat1);
@@ -36,7 +43,8 @@ function calcularPreco(distanciaKm: number) {
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => null);
-    const address = body?.address;
+
+    const address = typeof body?.address === "string" ? body.address.trim() : "";
 
     if (!address) {
       return NextResponse.json({ error: "Endereço é obrigatório" }, { status: 400 });
@@ -49,8 +57,9 @@ export async function POST(request: Request) {
 
     const resp = await fetch(url, {
       headers: {
-        "User-Agent": "Roxo-Sabor-App/1.0 (contato@roxosabor.com.br)",
-        "Accept": "application/json",
+        // evite domínio fake; pode colocar algo simples
+        "User-Agent": "Roxo-Sabor-App/1.0",
+        Accept: "application/json",
       },
       cache: "no-store",
     });
@@ -62,25 +71,35 @@ export async function POST(request: Request) {
       );
     }
 
-    const data = (await resp.json()) as any[];
+    const data = (await resp.json()) as NominatimResult[];
 
-    if (!data?.length) {
+    if (!Array.isArray(data) || data.length === 0) {
       return NextResponse.json(
         { error: "Endereço não encontrado. Verifique Bairro e Rua." },
         { status: 404 }
       );
     }
 
-    const destinoLat = parseFloat(data[0].lat);
-    const destinoLon = parseFloat(data[0].lon);
+    const destinoLat = Number.parseFloat(data[0].lat);
+    const destinoLon = Number.parseFloat(data[0].lon);
+
+    if (!Number.isFinite(destinoLat) || !Number.isFinite(destinoLon)) {
+      return NextResponse.json(
+        { error: "Coordenadas inválidas retornadas pelo serviço de mapas." },
+        { status: 502 }
+      );
+    }
 
     const distanciaKm = distanciaEmKm(ORIGEM_LAT, ORIGEM_LON, destinoLat, destinoLon);
     const price = calcularPreco(distanciaKm);
 
-    return NextResponse.json({
-      distanciaKm: Number(distanciaKm.toFixed(2)),
-      price,
-    });
+    return NextResponse.json(
+      {
+        distanciaKm: Number(distanciaKm.toFixed(2)),
+        price,
+      },
+      { status: 200 }
+    );
   } catch (err: any) {
     return NextResponse.json(
       { error: "Erro ao calcular distância: " + (err?.message ?? "desconhecido") },
@@ -88,6 +107,3 @@ export async function POST(request: Request) {
     );
   }
 }
-
-// Se você estiver usando runtime edge e der problema com fetch/headers, descomenta:
-// export const runtime = "nodejs";
