@@ -28,7 +28,7 @@ export default function Page() {
   const [customer, setCustomer] = useState<CustomerData>({
     name: "",
     whatsapp: "",
-    city: "Conselheiro Lafaiete - MG",
+    city: "Teste - MG",
     neighborhood: "",
     street: "",
     number: "",
